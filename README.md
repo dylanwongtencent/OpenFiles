@@ -65,6 +65,7 @@ Configuration files are under `examples/configs/`:
 | AWS S3 | `aws-s3.toml` | Native S3 through OpenDAL. Enable bucket versioning for best conflict behavior. |
 | GCP Cloud Storage | `gcp-gcs.toml` | Uses GCS service-account JSON or ADC. |
 | Azure Blob | `azure-blob.toml` | Uses account key or SAS token. |
+| Tencent COS | `tencent-cos.toml` | S3-compatible gateway endpoint. |
 | Vercel Blob | `vercel-blob.toml` | Uses Vercel Blob token. |
 | Storj | `storj.toml` | S3-compatible gateway endpoint. |
 | MinIO | `minio.toml` | S3-compatible local/dev endpoint. |
