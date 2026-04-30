@@ -35,7 +35,7 @@ struct ApiError(openfiles_core::OpenFilesError);
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        let status = match self.0 {
+        let status = match &self.0 {
             openfiles_core::OpenFilesError::NotFound(_) => StatusCode::NOT_FOUND,
             openfiles_core::OpenFilesError::Conflict(_) => StatusCode::CONFLICT,
             openfiles_core::OpenFilesError::InvalidPath(_) => StatusCode::BAD_REQUEST,
@@ -55,6 +55,8 @@ impl From<openfiles_core::OpenFilesError> for ApiError {
         Self(value)
     }
 }
+
+type ApiResult<T> = std::result::Result<T, ApiError>;
 
 #[derive(Debug, Deserialize)]
 struct ReadQuery {
@@ -77,26 +79,24 @@ fn slash(path: String) -> String {
 async fn stat(
     State(state): State<AppState>,
     Path(path): Path<String>,
-) -> Result<Json<openfiles_core::FileStat>, ApiError> {
+) -> ApiResult<Json<openfiles_core::FileStat>> {
     Ok(Json(state.engine.stat(&slash(path)).await?))
 }
 
-async fn stat_root(
-    State(state): State<AppState>,
-) -> Result<Json<openfiles_core::FileStat>, ApiError> {
+async fn stat_root(State(state): State<AppState>) -> ApiResult<Json<openfiles_core::FileStat>> {
     Ok(Json(state.engine.stat("/").await?))
 }
 
 async fn list(
     State(state): State<AppState>,
     Path(path): Path<String>,
-) -> Result<Json<Vec<openfiles_core::DirEntry>>, ApiError> {
+) -> ApiResult<Json<Vec<openfiles_core::DirEntry>>> {
     Ok(Json(state.engine.list_dir(&slash(path)).await?))
 }
 
 async fn list_root(
     State(state): State<AppState>,
-) -> Result<Json<Vec<openfiles_core::DirEntry>>, ApiError> {
+) -> ApiResult<Json<Vec<openfiles_core::DirEntry>>> {
     Ok(Json(state.engine.list_dir("/").await?))
 }
 
@@ -104,7 +104,7 @@ async fn read_file(
     State(state): State<AppState>,
     Path(path): Path<String>,
     Query(query): Query<ReadQuery>,
-) -> Result<Response, ApiError> {
+) -> ApiResult<Response> {
     let p = slash(path);
     let bytes = match (query.offset, query.len) {
         (Some(offset), Some(len)) => state.engine.read_range(&p, offset, len).await?,
@@ -117,7 +117,7 @@ async fn write_file(
     State(state): State<AppState>,
     Path(path): Path<String>,
     body: Bytes,
-) -> Result<Json<serde_json::Value>, ApiError> {
+) -> ApiResult<Json<serde_json::Value>> {
     let p = slash(path);
     state.engine.write_file(&p, body).await?;
     Ok(Json(serde_json::json!({ "ok": true, "path": p })))
@@ -126,7 +126,7 @@ async fn write_file(
 async fn delete_file(
     State(state): State<AppState>,
     Path(path): Path<String>,
-) -> Result<Json<serde_json::Value>, ApiError> {
+) -> ApiResult<Json<serde_json::Value>> {
     let p = slash(path);
     state.engine.delete_path(&p).await?;
     Ok(Json(serde_json::json!({ "ok": true, "path": p })))
@@ -141,19 +141,19 @@ struct RenameBody {
 async fn rename(
     State(state): State<AppState>,
     Json(body): Json<RenameBody>,
-) -> Result<Json<serde_json::Value>, ApiError> {
+) -> ApiResult<Json<serde_json::Value>> {
     state.engine.rename_path(&body.from, &body.to).await?;
     Ok(Json(
         serde_json::json!({ "ok": true, "from": body.from, "to": body.to }),
     ))
 }
 
-async fn flush(State(state): State<AppState>) -> Result<Json<serde_json::Value>, ApiError> {
+async fn flush(State(state): State<AppState>) -> ApiResult<Json<serde_json::Value>> {
     let n = state.engine.flush().await?;
     Ok(Json(serde_json::json!({ "flushed": n })))
 }
 
-async fn expire(State(state): State<AppState>) -> Result<Json<serde_json::Value>, ApiError> {
+async fn expire(State(state): State<AppState>) -> ApiResult<Json<serde_json::Value>> {
     let n = state.engine.expire_cache().await?;
     Ok(Json(serde_json::json!({ "expired": n })))
 }

@@ -11,7 +11,6 @@ use crate::types::{
 };
 use bytes::Bytes;
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::ops::Range;
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -182,15 +181,14 @@ impl OpenFilesEngine {
                 let entry = self.import_meta_from_object(&rel, &obj).await?;
                 if rule.trigger == ImportTrigger::OnDirectoryFirstAccess
                     && obj.size < rule.size_less_than
+                    && !entry.cached_data
                 {
-                    if !entry.cached_data {
-                        let data = self.backend.read(&obj.key).await?;
-                        let mut cached = entry.clone();
-                        self.cache.write_data(&obj.key, data).await?;
-                        cached.cached_data = true;
-                        cached.last_access_ns = now_ns();
-                        self.cache.put_entry(cached).await?;
-                    }
+                    let data = self.backend.read(&obj.key).await?;
+                    let mut cached = entry.clone();
+                    self.cache.write_data(&obj.key, data).await?;
+                    cached.cached_data = true;
+                    cached.last_access_ns = now_ns();
+                    self.cache.put_entry(cached).await?;
                 }
                 files.insert(
                     rel.clone(),
@@ -228,7 +226,7 @@ impl OpenFilesEngine {
                     DirEntry {
                         name: file_name(&entry.path),
                         path: display_path(&entry.path),
-                        kind: entry.kind.clone(),
+                        kind: entry.kind,
                         size: entry.size,
                     },
                 );
@@ -354,27 +352,47 @@ impl OpenFilesEngine {
         let from_norm = normalize_path(from)?;
         let to_norm = normalize_path(to)?;
         let from_stat = self.stat(&from_norm).await?;
+
         if from_stat.kind == FileKind::Directory {
-            let entries = self.list_dir(&from_norm).await?;
-            for child in entries {
-                let rel = child
-                    .path
-                    .trim_start_matches('/')
+            let mut pending_dirs = vec![from_norm.clone()];
+            let mut files = Vec::new();
+
+            while let Some(dir) = pending_dirs.pop() {
+                for child in self.list_dir(&dir).await? {
+                    match child.kind {
+                        FileKind::Directory => pending_dirs.push(normalize_path(&child.path)?),
+                        FileKind::File | FileKind::Symlink => {
+                            files.push(normalize_path(&child.path)?);
+                        }
+                    }
+                }
+            }
+
+            files.sort();
+            for file in files {
+                let rel = file
                     .strip_prefix(&from_norm)
-                    .unwrap_or("")
+                    .unwrap_or(file.as_str())
                     .trim_start_matches('/');
                 let target = if rel.is_empty() {
                     to_norm.clone()
                 } else {
                     format!("{to_norm}/{rel}")
                 };
-                self.rename_path(&child.path, &target).await?;
+                self.rename_file(&file, &target).await?;
             }
+
+            self.cache.remove_entry(&from_norm).await?;
             return Ok(());
         }
-        let data = self.read_all(&from_norm).await?;
-        self.write_file(&to_norm, data).await?;
-        self.delete_path(&from_norm).await?;
+
+        self.rename_file(&from_norm, &to_norm).await
+    }
+
+    async fn rename_file(&self, from_norm: &str, to_norm: &str) -> Result<()> {
+        let data = self.read_all(from_norm).await?;
+        self.write_file(to_norm, data).await?;
+        self.delete_path(from_norm).await?;
         Ok(())
     }
 

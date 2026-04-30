@@ -2,8 +2,7 @@ use anyhow::{Context, Result};
 use bytes::Bytes;
 use clap::{Parser, Subcommand};
 use openfiles_core::{vendor::build_backend, OpenFilesConfig, OpenFilesEngine};
-use std::path::PathBuf;
-use tokio::io::AsyncReadExt;
+use std::{io::Read, path::PathBuf};
 
 #[derive(Debug, Parser)]
 #[command(name = "openfiles")]
@@ -69,7 +68,9 @@ async fn engine(config: OpenFilesConfig) -> Result<OpenFilesEngine> {
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
-        .with_env_filter(std::env::var("RUST_LOG").unwrap_or_else(|_| "openfiles=info".to_string()))
+        .with_env_filter(
+            std::env::var("RUST_LOG").unwrap_or_else(|_| "openfiles=info".to_string()),
+        )
         .init();
 
     let cli = Cli::parse();
@@ -109,9 +110,9 @@ async fn main() -> Result<()> {
             println!("wrote {path}; run `openfiles flush` or wait for the export window");
         }
         Command::PutStdin { path } => {
-            let mut stdin = tokio::io::stdin();
+            let mut stdin = std::io::stdin();
             let mut buf = Vec::new();
-            stdin.read_to_end(&mut buf).await?;
+            stdin.read_to_end(&mut buf)?;
             engine.write_file(&path, Bytes::from(buf)).await?;
             println!("wrote {path}; run `openfiles flush` or wait for the export window");
         }

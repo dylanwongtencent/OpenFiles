@@ -1,0 +1,184 @@
+diff --git a/crates/openfiles-cli/src/main.rs b/crates/openfiles-cli/src/main.rs
+index f662825..4a56edf 100644
+--- a/crates/openfiles-cli/src/main.rs
++++ b/crates/openfiles-cli/src/main.rs
+@@ -2,8 +2,7 @@ use anyhow::{Context, Result};
+ use bytes::Bytes;
+ use clap::{Parser, Subcommand};
+ use openfiles_core::{vendor::build_backend, OpenFilesConfig, OpenFilesEngine};
+-use std::path::PathBuf;
+-use tokio::io::AsyncReadExt;
++use std::{io::Read, path::PathBuf};
+ 
+ #[derive(Debug, Parser)]
+ #[command(name = "openfiles")]
+@@ -69,7 +68,9 @@ async fn engine(config: OpenFilesConfig) -> Result<OpenFilesEngine> {
+ #[tokio::main]
+ async fn main() -> Result<()> {
+     tracing_subscriber::fmt()
+-        .with_env_filter(std::env::var("RUST_LOG").unwrap_or_else(|_| "openfiles=info".to_string()))
++        .with_env_filter(
++            std::env::var("RUST_LOG").unwrap_or_else(|_| "openfiles=info".to_string()),
++        )
+         .init();
+ 
+     let cli = Cli::parse();
+@@ -109,9 +110,9 @@ async fn main() -> Result<()> {
+             println!("wrote {path}; run `openfiles flush` or wait for the export window");
+         }
+         Command::PutStdin { path } => {
+-            let mut stdin = tokio::io::stdin();
++            let mut stdin = std::io::stdin();
+             let mut buf = Vec::new();
+-            stdin.read_to_end(&mut buf).await?;
++            stdin.read_to_end(&mut buf)?;
+             engine.write_file(&path, Bytes::from(buf)).await?;
+             println!("wrote {path}; run `openfiles flush` or wait for the export window");
+         }
+diff --git a/crates/openfiles-core/src/cache.rs b/crates/openfiles-core/src/cache.rs
+index 21b8fa7..f053365 100644
+--- a/crates/openfiles-core/src/cache.rs
++++ b/crates/openfiles-core/src/cache.rs
+@@ -57,7 +57,7 @@ impl CacheEntry {
+         FileStat {
+             path: self.path.clone(),
+             key: self.key.clone(),
+-            kind: self.kind.clone(),
++            kind: self.kind,
+             size: self.size,
+             mode: self.mode,
+             uid: self.uid,
+@@ -74,7 +74,7 @@ impl CacheEntry {
+     pub fn posix(&self) -> PosixMetadata {
+         PosixMetadata {
+             path: self.path.clone(),
+-            kind: self.kind.clone(),
++            kind: self.kind,
+             uid: self.uid,
+             gid: self.gid,
+             mode: self.mode,
+diff --git a/crates/openfiles-core/src/config.rs b/crates/openfiles-core/src/config.rs
+index eecae58..162a7f5 100644
+--- a/crates/openfiles-core/src/config.rs
++++ b/crates/openfiles-core/src/config.rs
+@@ -2,9 +2,10 @@ use crate::types::{ExpirationRule, ImportDataRule};
+ use serde::{Deserialize, Serialize};
+ use std::{collections::HashMap, path::PathBuf};
+ 
+-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
++#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
+ #[serde(rename_all = "kebab-case")]
+ pub enum ProviderKind {
++    #[default]
+     LocalFs,
+     AwsS3,
+     GcpGcs,
+@@ -16,12 +17,6 @@ pub enum ProviderKind {
+     S3Compatible,
+ }
+ 
+-impl Default for ProviderKind {
+-    fn default() -> Self {
+-        Self::LocalFs
+-    }
+-}
+-
+ #[derive(Clone, Debug, Default, Serialize, Deserialize)]
+ pub struct BackendConfig {
+     #[serde(default)]
+diff --git a/crates/openfiles-core/src/engine.rs b/crates/openfiles-core/src/engine.rs
+index e2d103c..c6d3206 100644
+--- a/crates/openfiles-core/src/engine.rs
++++ b/crates/openfiles-core/src/engine.rs
+@@ -181,15 +181,14 @@ impl OpenFilesEngine {
+                 let entry = self.import_meta_from_object(&rel, &obj).await?;
+                 if rule.trigger == ImportTrigger::OnDirectoryFirstAccess
+                     && obj.size < rule.size_less_than
++                    && !entry.cached_data
+                 {
+-                    if !entry.cached_data {
+-                        let data = self.backend.read(&obj.key).await?;
+-                        let mut cached = entry.clone();
+-                        self.cache.write_data(&obj.key, data).await?;
+-                        cached.cached_data = true;
+-                        cached.last_access_ns = now_ns();
+-                        self.cache.put_entry(cached).await?;
+-                    }
++                    let data = self.backend.read(&obj.key).await?;
++                    let mut cached = entry.clone();
++                    self.cache.write_data(&obj.key, data).await?;
++                    cached.cached_data = true;
++                    cached.last_access_ns = now_ns();
++                    self.cache.put_entry(cached).await?;
+                 }
+                 files.insert(
+                     rel.clone(),
+@@ -227,7 +226,7 @@ impl OpenFilesEngine {
+                     DirEntry {
+                         name: file_name(&entry.path),
+                         path: display_path(&entry.path),
+-                        kind: entry.kind.clone(),
++                        kind: entry.kind,
+                         size: entry.size,
+                     },
+                 );
+diff --git a/crates/openfiles-core/src/types.rs b/crates/openfiles-core/src/types.rs
+index 064297e..54d1262 100644
+--- a/crates/openfiles-core/src/types.rs
++++ b/crates/openfiles-core/src/types.rs
+@@ -2,33 +2,23 @@ use crate::error::{OpenFilesError, Result};
+ use serde::{Deserialize, Serialize};
+ use std::time::{SystemTime, UNIX_EPOCH};
+ 
+-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
++#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+ #[serde(rename_all = "kebab-case")]
+ pub enum FileKind {
++    #[default]
+     File,
+     Directory,
+     Symlink,
+ }
+ 
+-impl Default for FileKind {
+-    fn default() -> Self {
+-        Self::File
+-    }
+-}
+-
+-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
++#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+ #[serde(rename_all = "kebab-case")]
+ pub enum ImportTrigger {
++    #[default]
+     OnDirectoryFirstAccess,
+     OnFileAccess,
+ }
+ 
+-impl Default for ImportTrigger {
+-    fn default() -> Self {
+-        Self::OnDirectoryFirstAccess
+-    }
+-}
+-
+ #[derive(Clone, Debug, Serialize, Deserialize)]
+ pub struct ImportDataRule {
+     pub prefix: String,
+@@ -152,7 +142,7 @@ pub fn normalize_path(path: &str) -> Result<String> {
+         if comp == ".." {
+             return Err(OpenFilesError::InvalidPath(path.to_string()));
+         }
+-        if comp.as_bytes().len() > 255 {
++        if comp.len() > 255 {
+             return Err(OpenFilesError::InvalidPath(format!(
+                 "path component exceeds 255 bytes: {comp}"
+             )));
+@@ -160,7 +150,7 @@ pub fn normalize_path(path: &str) -> Result<String> {
+         components.push(comp);
+     }
+     let joined = components.join("/");
+-    if joined.as_bytes().len() > 1024 {
++    if joined.len() > 1024 {
+         return Err(OpenFilesError::InvalidPath(format!(
+             "object key path exceeds 1024 bytes: {joined}"
+         )));

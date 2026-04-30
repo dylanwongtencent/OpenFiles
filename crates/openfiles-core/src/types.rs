@@ -2,31 +2,21 @@ use crate::error::{OpenFilesError, Result};
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum FileKind {
+    #[default]
     File,
     Directory,
     Symlink,
 }
 
-impl Default for FileKind {
-    fn default() -> Self {
-        Self::File
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum ImportTrigger {
+    #[default]
     OnDirectoryFirstAccess,
     OnFileAccess,
-}
-
-impl Default for ImportTrigger {
-    fn default() -> Self {
-        Self::OnDirectoryFirstAccess
-    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -152,7 +142,7 @@ pub fn normalize_path(path: &str) -> Result<String> {
         if comp == ".." {
             return Err(OpenFilesError::InvalidPath(path.to_string()));
         }
-        if comp.as_bytes().len() > 255 {
+        if comp.len() > 255 {
             return Err(OpenFilesError::InvalidPath(format!(
                 "path component exceeds 255 bytes: {comp}"
             )));
@@ -160,7 +150,7 @@ pub fn normalize_path(path: &str) -> Result<String> {
         components.push(comp);
     }
     let joined = components.join("/");
-    if joined.as_bytes().len() > 1024 {
+    if joined.len() > 1024 {
         return Err(OpenFilesError::InvalidPath(format!(
             "object key path exceeds 1024 bytes: {joined}"
         )));

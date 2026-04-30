@@ -57,7 +57,7 @@ impl CacheEntry {
         FileStat {
             path: self.path.clone(),
             key: self.key.clone(),
-            kind: self.kind.clone(),
+            kind: self.kind,
             size: self.size,
             mode: self.mode,
             uid: self.uid,
@@ -74,7 +74,7 @@ impl CacheEntry {
     pub fn posix(&self) -> PosixMetadata {
         PosixMetadata {
             path: self.path.clone(),
-            kind: self.kind.clone(),
+            kind: self.kind,
             uid: self.uid,
             gid: self.gid,
             mode: self.mode,

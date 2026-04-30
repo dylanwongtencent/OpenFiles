@@ -2,9 +2,10 @@ use crate::types::{ExpirationRule, ImportDataRule};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, path::PathBuf};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ProviderKind {
+    #[default]
     LocalFs,
     AwsS3,
     GcpGcs,
@@ -14,12 +15,6 @@ pub enum ProviderKind {
     Minio,
     NetappStorageGrid,
     S3Compatible,
-}
-
-impl Default for ProviderKind {
-    fn default() -> Self {
-        Self::LocalFs
-    }
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
