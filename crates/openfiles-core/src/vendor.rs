@@ -52,7 +52,11 @@ fn build_opendal_backend(config: &BackendConfig) -> Result<Arc<dyn ObjectBackend
     }
 
     let operator = match config.provider {
-        ProviderKind::AwsS3 | ProviderKind::S3Compatible | ProviderKind::Storj | ProviderKind::Minio | ProviderKind::NetappStorageGrid => {
+        ProviderKind::AwsS3
+        | ProviderKind::S3Compatible
+        | ProviderKind::Storj
+        | ProviderKind::Minio
+        | ProviderKind::NetappStorageGrid => {
             let mut builder = services::S3::default();
             apply_s3_common(&mut builder, config);
             Operator::new(builder)?.finish()

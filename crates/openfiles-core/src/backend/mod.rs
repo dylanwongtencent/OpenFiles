@@ -37,7 +37,12 @@ pub trait ObjectBackend: Send + Sync + 'static {
     async fn head(&self, key: &str) -> Result<Option<ObjectMeta>>;
     async fn read(&self, key: &str) -> Result<Bytes>;
     async fn read_range(&self, key: &str, range: Range<u64>) -> Result<Bytes>;
-    async fn write(&self, key: &str, data: Bytes, metadata: HashMap<String, String>) -> Result<ObjectVersion>;
+    async fn write(
+        &self,
+        key: &str,
+        data: Bytes,
+        metadata: HashMap<String, String>,
+    ) -> Result<ObjectVersion>;
     async fn delete(&self, key: &str) -> Result<()>;
     async fn copy(&self, from: &str, to: &str) -> Result<()>;
     async fn list(&self, prefix: &str) -> Result<Vec<ObjectMeta>>;

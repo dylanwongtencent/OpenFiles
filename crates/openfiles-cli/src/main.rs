@@ -61,7 +61,9 @@ fn load_config(path: Option<PathBuf>) -> Result<OpenFilesConfig> {
 
 async fn engine(config: OpenFilesConfig) -> Result<OpenFilesEngine> {
     let backend = build_backend(&config.backend)?;
-    OpenFilesEngine::new(config, backend).await.map_err(Into::into)
+    OpenFilesEngine::new(config, backend)
+        .await
+        .map_err(Into::into)
 }
 
 #[tokio::main]

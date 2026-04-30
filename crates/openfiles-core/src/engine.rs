@@ -2,7 +2,9 @@ use crate::backend::{ObjectBackend, ObjectMeta};
 use crate::cache::{Cache, CacheEntry};
 use crate::config::OpenFilesConfig;
 use crate::error::{OpenFilesError, Result};
-use crate::metadata::{decode_user_metadata, encode_user_metadata, is_internal_key, sidecar_key, SidecarMetadata};
+use crate::metadata::{
+    decode_user_metadata, encode_user_metadata, is_internal_key, sidecar_key, SidecarMetadata,
+};
 use crate::types::{
     dir_prefix, display_path, file_name, normalize_path, now_ns, DirEntry, FileKind, FileStat,
     ImportDataRule, ImportTrigger, PosixMetadata,
@@ -46,7 +48,10 @@ impl OpenFilesEngine {
 
     fn path_from_key(&self, key: &str) -> String {
         let prefix = self.config.normalized_prefix();
-        key.strip_prefix(&prefix).unwrap_or(key).trim_matches('/').to_string()
+        key.strip_prefix(&prefix)
+            .unwrap_or(key)
+            .trim_matches('/')
+            .to_string()
     }
 
     fn matching_import_rule(&self, path: &str) -> ImportDataRule {
@@ -83,14 +88,17 @@ impl OpenFilesEngine {
     async fn write_sidecar(&self, key: &str, posix: PosixMetadata) -> Result<()> {
         let side = sidecar_key(key);
         let bytes = serde_json::to_vec_pretty(&SidecarMetadata::new(posix))?;
-        self.backend.write(&side, Bytes::from(bytes), HashMap::new()).await?;
+        self.backend
+            .write(&side, Bytes::from(bytes), HashMap::new())
+            .await?;
         Ok(())
     }
 
     async fn import_meta_from_object(&self, path: &str, obj: &ObjectMeta) -> Result<CacheEntry> {
         let posix = match self.read_sidecar(&obj.key, path).await? {
             Some(m) => m,
-            None => decode_user_metadata(path, &obj.metadata).unwrap_or_else(|| PosixMetadata::new_file(path)),
+            None => decode_user_metadata(path, &obj.metadata)
+                .unwrap_or_else(|| PosixMetadata::new_file(path)),
         };
         let mut entry = CacheEntry::from_posix(path.to_string(), obj.key.clone(), posix, obj.size);
         entry.etag = obj.etag.clone();
@@ -172,7 +180,9 @@ impl OpenFilesEngine {
                 dirs.insert(child_path);
             } else {
                 let entry = self.import_meta_from_object(&rel, &obj).await?;
-                if rule.trigger == ImportTrigger::OnDirectoryFirstAccess && obj.size < rule.size_less_than {
+                if rule.trigger == ImportTrigger::OnDirectoryFirstAccess
+                    && obj.size < rule.size_less_than
+                {
                     if !entry.cached_data {
                         let data = self.backend.read(&obj.key).await?;
                         let mut cached = entry.clone();
@@ -206,7 +216,11 @@ impl OpenFilesEngine {
                 continue;
             }
             if let Some((dir, _)) = child_rel.split_once('/') {
-                let child_path = if normalized.is_empty() { dir.to_string() } else { format!("{normalized}/{dir}") };
+                let child_path = if normalized.is_empty() {
+                    dir.to_string()
+                } else {
+                    format!("{normalized}/{dir}")
+                };
                 dirs.insert(child_path);
             } else {
                 files.insert(
@@ -254,10 +268,15 @@ impl OpenFilesEngine {
         }
 
         let rule = self.matching_import_rule(&normalized);
-        if len >= self.config.cache.direct_read_threshold_bytes || stat.size >= self.config.cache.direct_read_threshold_bytes {
+        if len >= self.config.cache.direct_read_threshold_bytes
+            || stat.size >= self.config.cache.direct_read_threshold_bytes
+        {
             if rule.trigger == ImportTrigger::OnFileAccess && stat.size < rule.size_less_than {
                 let all = self.backend.read(&key).await?;
-                let mut entry = self.cache.get(&normalized).ok_or_else(|| OpenFilesError::NotFound(path.to_string()))?;
+                let mut entry = self
+                    .cache
+                    .get(&normalized)
+                    .ok_or_else(|| OpenFilesError::NotFound(path.to_string()))?;
                 self.cache.write_data(&key, all.clone()).await?;
                 entry.cached_data = true;
                 entry.last_access_ns = now_ns();
@@ -268,7 +287,10 @@ impl OpenFilesEngine {
         }
 
         let all = self.backend.read(&key).await?;
-        let mut entry = self.cache.get(&normalized).ok_or_else(|| OpenFilesError::NotFound(path.to_string()))?;
+        let mut entry = self
+            .cache
+            .get(&normalized)
+            .ok_or_else(|| OpenFilesError::NotFound(path.to_string()))?;
         self.cache.write_data(&key, all.clone()).await?;
         entry.cached_data = true;
         entry.last_access_ns = now_ns();
@@ -289,7 +311,8 @@ impl OpenFilesEngine {
         let key = self.key_for_path(&normalized)?;
         let head = self.backend.head(&key).await?;
         let posix = PosixMetadata::new_file(display_path(&normalized));
-        let mut entry = CacheEntry::from_posix(normalized.clone(), key.clone(), posix, data.len() as u64);
+        let mut entry =
+            CacheEntry::from_posix(normalized.clone(), key.clone(), posix, data.len() as u64);
         entry.cached_data = true;
         entry.dirty = true;
         entry.base_etag = head.as_ref().and_then(|h| h.etag.clone());
@@ -308,7 +331,12 @@ impl OpenFilesEngine {
         let normalized = normalize_path(path)?;
         let key = self.key_for_path(&normalized)?;
         let mut entry = self.cache.get(&normalized).unwrap_or_else(|| {
-            let mut e = CacheEntry::from_posix(normalized.clone(), key.clone(), PosixMetadata::new_file(display_path(&normalized)), 0);
+            let mut e = CacheEntry::from_posix(
+                normalized.clone(),
+                key.clone(),
+                PosixMetadata::new_file(display_path(&normalized)),
+                0,
+            );
             e.base_etag = None;
             e.base_version = None;
             e
@@ -329,8 +357,17 @@ impl OpenFilesEngine {
         if from_stat.kind == FileKind::Directory {
             let entries = self.list_dir(&from_norm).await?;
             for child in entries {
-                let rel = child.path.trim_start_matches('/').strip_prefix(&from_norm).unwrap_or("").trim_start_matches('/');
-                let target = if rel.is_empty() { to_norm.clone() } else { format!("{to_norm}/{rel}") };
+                let rel = child
+                    .path
+                    .trim_start_matches('/')
+                    .strip_prefix(&from_norm)
+                    .unwrap_or("")
+                    .trim_start_matches('/');
+                let target = if rel.is_empty() {
+                    to_norm.clone()
+                } else {
+                    format!("{to_norm}/{rel}")
+                };
                 self.rename_path(&child.path, &target).await?;
             }
             return Ok(());
@@ -356,7 +393,9 @@ impl OpenFilesEngine {
         let remote_changed = match (&head, &entry.base_etag, &entry.base_version) {
             (Some(h), Some(base), _) if h.etag.as_ref() != Some(base) => true,
             (Some(h), _, Some(base)) if h.version.as_ref() != Some(base) => true,
-            (Some(_), None, None) if entry.base_etag.is_none() && entry.base_version.is_none() => false,
+            (Some(_), None, None) if entry.base_etag.is_none() && entry.base_version.is_none() => {
+                false
+            }
             _ => false,
         };
         if remote_changed {
@@ -428,7 +467,12 @@ impl OpenFilesEngine {
     }
 
     pub async fn expire_cache(&self) -> Result<u64> {
-        let days = self.config.sync.expiration.days_after_last_access.clamp(1, 365) as u128;
+        let days = self
+            .config
+            .sync
+            .expiration
+            .days_after_last_access
+            .clamp(1, 365) as u128;
         let cutoff = now_ns().saturating_sub(days * 24 * 60 * 60 * 1_000_000_000u128);
         self.cache.expire_data_older_than_ns(cutoff).await
     }

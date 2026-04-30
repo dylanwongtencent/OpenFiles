@@ -25,13 +25,19 @@ enum Command {
     /// Validate backend credentials and cache configuration.
     Validate,
     /// Print a wasmCloud manifest that mounts an OpenFiles volume into a component.
-    Manifest { #[arg(long, default_value = "/mnt/openfiles")] mount: String },
+    Manifest {
+        #[arg(long, default_value = "/mnt/openfiles")]
+        mount: String,
+    },
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
-        .with_env_filter(std::env::var("RUST_LOG").unwrap_or_else(|_| "openfiles_wasmcloud_host=info".to_string()))
+        .with_env_filter(
+            std::env::var("RUST_LOG")
+                .unwrap_or_else(|_| "openfiles_wasmcloud_host=info".to_string()),
+        )
         .init();
     let args = Args::parse();
     let config = OpenFilesConfig::from_toml_file(&args.config)
@@ -49,7 +55,8 @@ async fn main() -> Result<()> {
 }
 
 fn print_manifest(config: &OpenFilesConfig, mount: &str) {
-    println!(r#"# Generated OpenFiles wasmCloud workload manifest excerpt.
+    println!(
+        r#"# Generated OpenFiles wasmCloud workload manifest excerpt.
 # 1. Run openfiles-server or openfiles-fuse as a sidecar/init container.
 # 2. Mount the resulting directory into the wasmCloud host.
 # 3. Grant the component a WASI filesystem preopen at the same path.
@@ -95,5 +102,8 @@ spec:
       env:
         OPENFILES_MOUNT: "{mount}"
         OPENFILES_FS_ID: "{fs_id}"
-"#, mount = mount, fs_id = config.fs_id);
+"#,
+        mount = mount,
+        fs_id = config.fs_id
+    );
 }

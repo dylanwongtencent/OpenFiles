@@ -18,7 +18,11 @@ impl OpendalBackend {
     }
 
     fn meta_from_entry(path: String, meta: opendal::Metadata) -> ObjectMeta {
-        let kind = if meta.is_dir() { FileKind::Directory } else { FileKind::File };
+        let kind = if meta.is_dir() {
+            FileKind::Directory
+        } else {
+            FileKind::File
+        };
         ObjectMeta {
             key: path,
             size: meta.content_length(),
@@ -51,7 +55,12 @@ impl ObjectBackend for OpendalBackend {
         Ok(Bytes::from(data.to_vec()))
     }
 
-    async fn write(&self, key: &str, data: Bytes, _metadata: HashMap<String, String>) -> Result<ObjectVersion> {
+    async fn write(
+        &self,
+        key: &str,
+        data: Bytes,
+        _metadata: HashMap<String, String>,
+    ) -> Result<ObjectVersion> {
         self.op.write(key, data.to_vec()).await?;
         let head = self.head(key).await?;
         Ok(ObjectVersion {

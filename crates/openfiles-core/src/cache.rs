@@ -226,7 +226,12 @@ impl Cache {
         }
     }
 
-    pub async fn mark_clean(&self, path: &str, etag: Option<String>, version: Option<String>) -> Result<()> {
+    pub async fn mark_clean(
+        &self,
+        path: &str,
+        etag: Option<String>,
+        version: Option<String>,
+    ) -> Result<()> {
         let mut entry = self
             .get(path)
             .ok_or_else(|| OpenFilesError::NotFound(path.to_string()))?;

@@ -4,7 +4,11 @@ use crate::types::{normalize_path, now_ns, FileKind};
 use async_trait::async_trait;
 use bytes::Bytes;
 use sha2::{Digest, Sha256};
-use std::{collections::HashMap, ops::Range, path::{Path, PathBuf}};
+use std::{
+    collections::HashMap,
+    ops::Range,
+    path::{Path, PathBuf},
+};
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 
 #[derive(Clone, Debug)]
@@ -28,7 +32,12 @@ impl LocalFsBackend {
         hex::encode(h.finalize())
     }
 
-    fn walk(root: &Path, base: &Path, prefix: &str, out: &mut Vec<ObjectMeta>) -> std::io::Result<()> {
+    fn walk(
+        root: &Path,
+        base: &Path,
+        prefix: &str,
+        out: &mut Vec<ObjectMeta>,
+    ) -> std::io::Result<()> {
         if !base.exists() {
             return Ok(());
         }
@@ -104,7 +113,12 @@ impl ObjectBackend for LocalFsBackend {
         Ok(Bytes::from(buf))
     }
 
-    async fn write(&self, key: &str, data: Bytes, _metadata: HashMap<String, String>) -> Result<ObjectVersion> {
+    async fn write(
+        &self,
+        key: &str,
+        data: Bytes,
+        _metadata: HashMap<String, String>,
+    ) -> Result<ObjectVersion> {
         let path = self.full_path(key)?;
         if let Some(parent) = path.parent() {
             tokio::fs::create_dir_all(parent).await?;
@@ -144,7 +158,8 @@ impl ObjectBackend for LocalFsBackend {
 
     async fn list(&self, prefix: &str) -> Result<Vec<ObjectMeta>> {
         let root = self.root.clone();
-        let prefix = normalize_path(prefix).unwrap_or_else(|_| prefix.trim_start_matches('/').to_string());
+        let prefix =
+            normalize_path(prefix).unwrap_or_else(|_| prefix.trim_start_matches('/').to_string());
         tokio::task::spawn_blocking(move || {
             let mut out = Vec::new();
             Self::walk(&root, &root, &prefix, &mut out)?;

@@ -8,7 +8,11 @@ use axum::{
     Json, Router,
 };
 use clap::Parser;
-use openfiles_core::{sync::{spawn_background_sync, BackgroundSyncConfig}, vendor::build_backend, OpenFilesConfig, OpenFilesEngine};
+use openfiles_core::{
+    sync::{spawn_background_sync, BackgroundSyncConfig},
+    vendor::build_backend,
+    OpenFilesConfig, OpenFilesEngine,
+};
 use serde::Deserialize;
 use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 use tower_http::trace::TraceLayer;
@@ -38,7 +42,11 @@ impl IntoResponse for ApiError {
             openfiles_core::OpenFilesError::Unsupported(_) => StatusCode::NOT_IMPLEMENTED,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
-        (status, Json(serde_json::json!({ "error": self.0.to_string() }))).into_response()
+        (
+            status,
+            Json(serde_json::json!({ "error": self.0.to_string() })),
+        )
+            .into_response()
     }
 }
 
@@ -59,22 +67,36 @@ async fn health() -> &'static str {
 }
 
 fn slash(path: String) -> String {
-    if path.is_empty() { "/".to_string() } else { format!("/{path}") }
+    if path.is_empty() {
+        "/".to_string()
+    } else {
+        format!("/{path}")
+    }
 }
 
-async fn stat(State(state): State<AppState>, Path(path): Path<String>) -> Result<Json<openfiles_core::FileStat>, ApiError> {
+async fn stat(
+    State(state): State<AppState>,
+    Path(path): Path<String>,
+) -> Result<Json<openfiles_core::FileStat>, ApiError> {
     Ok(Json(state.engine.stat(&slash(path)).await?))
 }
 
-async fn stat_root(State(state): State<AppState>) -> Result<Json<openfiles_core::FileStat>, ApiError> {
+async fn stat_root(
+    State(state): State<AppState>,
+) -> Result<Json<openfiles_core::FileStat>, ApiError> {
     Ok(Json(state.engine.stat("/").await?))
 }
 
-async fn list(State(state): State<AppState>, Path(path): Path<String>) -> Result<Json<Vec<openfiles_core::DirEntry>>, ApiError> {
+async fn list(
+    State(state): State<AppState>,
+    Path(path): Path<String>,
+) -> Result<Json<Vec<openfiles_core::DirEntry>>, ApiError> {
     Ok(Json(state.engine.list_dir(&slash(path)).await?))
 }
 
-async fn list_root(State(state): State<AppState>) -> Result<Json<Vec<openfiles_core::DirEntry>>, ApiError> {
+async fn list_root(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<openfiles_core::DirEntry>>, ApiError> {
     Ok(Json(state.engine.list_dir("/").await?))
 }
 
@@ -101,18 +123,29 @@ async fn write_file(
     Ok(Json(serde_json::json!({ "ok": true, "path": p })))
 }
 
-async fn delete_file(State(state): State<AppState>, Path(path): Path<String>) -> Result<Json<serde_json::Value>, ApiError> {
+async fn delete_file(
+    State(state): State<AppState>,
+    Path(path): Path<String>,
+) -> Result<Json<serde_json::Value>, ApiError> {
     let p = slash(path);
     state.engine.delete_path(&p).await?;
     Ok(Json(serde_json::json!({ "ok": true, "path": p })))
 }
 
 #[derive(Debug, Deserialize)]
-struct RenameBody { from: String, to: String }
+struct RenameBody {
+    from: String,
+    to: String,
+}
 
-async fn rename(State(state): State<AppState>, Json(body): Json<RenameBody>) -> Result<Json<serde_json::Value>, ApiError> {
+async fn rename(
+    State(state): State<AppState>,
+    Json(body): Json<RenameBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
     state.engine.rename_path(&body.from, &body.to).await?;
-    Ok(Json(serde_json::json!({ "ok": true, "from": body.from, "to": body.to })))
+    Ok(Json(
+        serde_json::json!({ "ok": true, "from": body.from, "to": body.to }),
+    ))
 }
 
 async fn flush(State(state): State<AppState>) -> Result<Json<serde_json::Value>, ApiError> {
@@ -128,7 +161,10 @@ async fn expire(State(state): State<AppState>) -> Result<Json<serde_json::Value>
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
-        .with_env_filter(std::env::var("RUST_LOG").unwrap_or_else(|_| "openfiles_server=info,tower_http=info".to_string()))
+        .with_env_filter(
+            std::env::var("RUST_LOG")
+                .unwrap_or_else(|_| "openfiles_server=info,tower_http=info".to_string()),
+        )
         .init();
 
     let args = Args::parse();
@@ -139,10 +175,15 @@ async fn main() -> Result<()> {
     let flush_interval = Duration::from_secs(config.sync.export_batch_window_secs.max(1));
     let _sync = spawn_background_sync(
         engine.clone(),
-        BackgroundSyncConfig { flush_interval, ..Default::default() },
+        BackgroundSyncConfig {
+            flush_interval,
+            ..Default::default()
+        },
     );
 
-    let state = AppState { engine: Arc::new(engine) };
+    let state = AppState {
+        engine: Arc::new(engine),
+    };
     let app = Router::new()
         .route("/healthz", get(health))
         .route("/v1/stat", get(stat_root))
