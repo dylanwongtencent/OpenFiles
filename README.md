@@ -27,10 +27,10 @@ docker compose -f examples/docker-compose.yml up -d minio createbucket
 cargo run -p openfiles-server -- --config ./openfiles.toml
 
 # In another shell
-cargo run -p openfiles-cli -- --config ./openfiles.toml write /hello.txt "hello from OpenFiles"
-cargo run -p openfiles-cli -- --config ./openfiles.toml ls /
-cargo run -p openfiles-cli -- --config ./openfiles.toml cat /hello.txt
-cargo run -p openfiles-cli -- --config ./openfiles.toml flush
+cargo run -q  -p openfiles-cli -- --config ./openfiles.toml write /hello.txt "hello from OpenFiles"
+cargo run -q  -p openfiles-cli -- --config ./openfiles.toml ls /
+cargo run -q  -p openfiles-cli -- --config ./openfiles.toml cat /hello.txt
+cargo run -q  -p openfiles-cli -- --config ./openfiles.toml flush
 ```
 
 The MinIO console is available at `http://localhost:9001` with the credentials in `examples/docker-compose.yml`.
@@ -65,7 +65,6 @@ Configuration files are under `examples/configs/`:
 | AWS S3 | `aws-s3.toml` | Native S3 through OpenDAL. Enable bucket versioning for best conflict behavior. |
 | GCP Cloud Storage | `gcp-gcs.toml` | Uses GCS service-account JSON or ADC. |
 | Azure Blob | `azure-blob.toml` | Uses account key or SAS token. |
-| Tencent COS | `tencent-cos.toml` | S3-compatible gateway endpoint. |
 | Vercel Blob | `vercel-blob.toml` | Uses Vercel Blob token. |
 | Storj | `storj.toml` | S3-compatible gateway endpoint. |
 | MinIO | `minio.toml` | S3-compatible local/dev endpoint. |
@@ -109,4 +108,3 @@ docs/                          Standard, architecture, performance, vendor matri
 ## License
 
 Apache-2.0. See `LICENSE`.
-# OpenFiles
