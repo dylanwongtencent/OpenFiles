@@ -211,7 +211,11 @@ impl OpenFilesEngine {
         }
 
         for entry in self.cache.iter_entries() {
-            if entry.deleted {
+            if entry.deleted
+                || entry.path == ".openfiles"
+                || entry.path.starts_with(".openfiles/")
+                || entry.path.starts_with(".openfiles")
+            {
                 continue;
             }
             if !entry.path.starts_with(&dir_prefix_path) {
