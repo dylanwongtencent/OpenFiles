@@ -1,6 +1,6 @@
-# OpenFiles
+# OpenS3Files
 
-OpenFiles is an open source, vendor-neutral object-backed shared file system standard and Rust implementation inspired by the public behavior of Amazon S3 Files.
+OpenS3Files is an open source, vendor-neutral object-backed shared file system standard and Rust implementation inspired by the public behavior of Amazon S3 Files.
 
 It gives file-oriented applications, agents, scripts, and WebAssembly components a POSIX-like filesystem view over object stores while keeping the object store as the durable source of truth.
 
